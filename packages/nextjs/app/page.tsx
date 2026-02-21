@@ -1,80 +1,81 @@
 "use client";
 
-import Link from "next/link";
-import { Address } from "@scaffold-ui/components";
+import { useState } from "react";
 import type { NextPage } from "next";
-import { hardhat } from "viem/chains";
-import { useAccount } from "wagmi";
-import { BugAntIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
-import { useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { Address } from "@scaffold-ui/components";
+import { useScaffoldReadContract } from "~~/hooks/scaffold-eth/useScaffoldReadContract";
+import { useScaffoldWriteContract } from "~~/hooks/scaffold-eth/useScaffoldWriteContract";
+import { useDeployedContractInfo } from "~~/hooks/scaffold-eth/useDeployedContractInfo";
+import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
 
 const Home: NextPage = () => {
-  const { address: connectedAddress } = useAccount();
+  const [newGreeting, setNewGreeting] = useState("");
   const { targetNetwork } = useTargetNetwork();
 
-  return (
-    <>
-      <div className="flex items-center flex-col grow pt-10">
-        <div className="px-5">
-          <h1 className="text-center">
-            <span className="block text-2xl mb-2">Welcome to</span>
-            <span className="block text-4xl font-bold">Scaffold-ETH 2</span>
-          </h1>
-          <div className="flex justify-center items-center space-x-2 flex-col">
-            <p className="my-2 font-medium">Connected Address:</p>
-            <Address
-              address={connectedAddress}
-              chain={targetNetwork}
-              blockExplorerAddressLink={
-                targetNetwork.id === hardhat.id ? `/blockexplorer/address/${connectedAddress}` : undefined
-              }
-            />
-          </div>
+  const { data: currentGreeting } = useScaffoldReadContract({
+    contractName: "Greeter",
+    functionName: "greeting",
+  });
 
-          <p className="text-center text-lg">
-            Get started by editing{" "}
-            <code className="italic bg-base-300 text-base font-bold max-w-full break-words break-all inline-block">
-              packages/nextjs/app/page.tsx
-            </code>
-          </p>
-          <p className="text-center text-lg">
-            Edit your smart contract{" "}
-            <code className="italic bg-base-300 text-base font-bold max-w-full break-words break-all inline-block">
-              YourContract.sol
-            </code>{" "}
-            in{" "}
-            <code className="italic bg-base-300 text-base font-bold max-w-full break-words break-all inline-block">
-              packages/hardhat/contracts
-            </code>
+  const { data: greeterContractData } = useDeployedContractInfo({ contractName: "Greeter" });
+
+  const { writeContractAsync, isMining } = useScaffoldWriteContract({ contractName: "Greeter" });
+
+  const handleSetGreeting = async () => {
+    try {
+      await writeContractAsync({
+        functionName: "setGreeting",
+        args: [newGreeting],
+      });
+      setNewGreeting("");
+    } catch (e) {
+      console.error("Error setting greeting:", e);
+    }
+  };
+
+  return (
+    <div className="flex items-center flex-col grow pt-10">
+      <div className="px-5 w-full max-w-lg flex flex-col items-center">
+        {/* Current greeting - visible to everyone, no wallet needed */}
+        <div className="text-center mb-10">
+          <p className="text-5xl font-bold leading-tight">
+            {currentGreeting ?? "Loading..."}
           </p>
         </div>
 
-        <div className="grow bg-base-300 w-full mt-16 px-8 py-12">
-          <div className="flex justify-center items-center gap-12 flex-col md:flex-row">
-            <div className="flex flex-col bg-base-100 px-10 py-10 text-center items-center max-w-xs rounded-3xl">
-              <BugAntIcon className="h-8 w-8 fill-secondary" />
-              <p>
-                Tinker with your smart contract using the{" "}
-                <Link href="/debug" passHref className="link">
-                  Debug Contracts
-                </Link>{" "}
-                tab.
-              </p>
-            </div>
-            <div className="flex flex-col bg-base-100 px-10 py-10 text-center items-center max-w-xs rounded-3xl">
-              <MagnifyingGlassIcon className="h-8 w-8 fill-secondary" />
-              <p>
-                Explore your local transactions with the{" "}
-                <Link href="/blockexplorer" passHref className="link">
-                  Block Explorer
-                </Link>{" "}
-                tab.
-              </p>
-            </div>
-          </div>
+        {/* Set greeting form */}
+        <div className="w-full flex flex-col gap-4">
+          <input
+            type="text"
+            placeholder="Enter new greeting"
+            className="input input-bordered w-full"
+            value={newGreeting}
+            onChange={e => setNewGreeting(e.target.value)}
+            disabled={isMining}
+          />
+          <button
+            className="btn btn-primary w-full"
+            disabled={isMining || !newGreeting.trim()}
+            onClick={handleSetGreeting}
+          >
+            {isMining ? (
+              <>
+                <span className="loading loading-spinner loading-sm"></span>
+                Setting...
+              </>
+            ) : (
+              "Set Greeting"
+            )}
+          </button>
+        </div>
+
+        {/* Contract address */}
+        <div className="text-center mt-12 text-sm opacity-70">
+          <p>Contract:</p>
+          <Address address={greeterContractData?.address} chain={targetNetwork} />
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
